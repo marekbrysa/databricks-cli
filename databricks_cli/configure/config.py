@@ -52,6 +52,8 @@ def provide_api_client(function):
             raise InvalidConfigurationError.for_profile(profile)
         kwargs['api_client'] = _get_api_client(config, command_name)
 
+        print(args, kwargs)
+
         return function(*args, **kwargs)
     decorator.__doc__ = function.__doc__
     return decorator

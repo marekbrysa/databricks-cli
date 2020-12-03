@@ -88,9 +88,9 @@ def pipelines_exception_eater(function):
 
 def error_and_quit(message):
     ctx = click.get_current_context()
-    context_object = ctx.ensure_object(ContextObject)
-    if context_object.debug_mode:
-        traceback.print_exc()
+    #context_object = ctx.ensure_object(ContextObject)
+    #if context_object.debug_mode:
+    traceback.print_exc()
     click.echo(u'Error: {}'.format(message))
     sys.exit(1)
 
