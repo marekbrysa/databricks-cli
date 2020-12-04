@@ -72,11 +72,15 @@ def reset_cli(api_client, json_file, json, job_id):
     The specification for the json option can be found
     https://docs.databricks.com/api/latest/jobs.html#jobsjobsettings
     """
-    if not bool(json_file) ^ bool(json):
+    if bool(json_file) and bool(json):
         raise RuntimeError('Either --json-file or --json should be provided')
     if json_file:
         with open(json_file, 'r') as f:
             json = f.read()
+    elif json is None:
+        job_data = JobsApi(api_client).get_job(job_id)
+        json = click.edit(pretty_format(job_data['settings']))
+
     deser_json = json_loads(json)
     request_body = {
         'job_id': job_id,
