@@ -31,7 +31,8 @@ from tabulate import tabulate
 
 import databricks_cli.clusters.cli as cli
 from databricks_cli.utils import pretty_format
-from tests.test_data import TEST_CLUSTER_ID, TEST_CLUSTER_NAME, CLUSTER_1_RV
+from tests.test_data import TEST_CLUSTER_ID, TEST_CLUSTER_NAME, CLUSTER_1_RV,\
+    CLUSTER_1_RV_EDITABLE
 from tests.utils import provide_conf, assert_cli_output
 
 CLUSTER_ID = TEST_CLUSTER_ID
@@ -79,11 +80,28 @@ def test_edit_cli_json_file(cluster_api_mock):
 
 
 @provide_conf
+def test_edit_cli_cluster_id(cluster_api_mock):
+    runner = CliRunner()
+    with mock.patch('databricks_cli.clusters.cli.click.edit') as edit_mock:
+        edit_mock.return_value = EDIT_JSON
+        runner.invoke(cli.edit_cli, ['--cluster-id', 'cluster_id1'])
+        assert edit_mock.call_args[0][0] == """{
+  "cluster_name": "databricks-cluster-1"
+}
+# Edit the JSON above. Non-editable state below and is ignored.
+{}"""
+
+    assert cluster_api_mock.edit_cluster.call_args[0][0] == json.loads(EDIT_JSON)
+
+
+@provide_conf
 def test_edit_cli_no_args():
     runner = CliRunner()
     res = runner.invoke(cli.edit_cli, [])
-    assert_cli_output(res.output,
-                      'Error: RuntimeError: Either --json-file or --json should be provided')
+    assert_cli_output(
+        res.output,
+        'Error: RuntimeError: One of --json-file, --json or --cluster-id must be provided'
+    )
 
 
 @provide_conf
@@ -187,6 +205,13 @@ def test_get_cli_cluster_id(cluster_sdk_mock):
     help_test(cli.get_cli, cluster_sdk_mock.get_cluster, CLUSTER_1_RV,
               ['--cluster-id', TEST_CLUSTER_ID])
 
+@provide_conf
+def test_get_cli_cluster_id_editable_only(cluster_sdk_mock):
+    cluster_sdk_mock.list_clusters.return_value = LIST_RETURN
+    cluster_sdk_mock.get_cluster.return_value = CLUSTER_1_RV
+    help_test(cli.get_cli, cluster_sdk_mock.get_cluster, CLUSTER_1_RV_EDITABLE,
+              ['--cluster-id', TEST_CLUSTER_ID, '--editable-only'])
+
 
 @provide_conf
 def test_list_jobs(cluster_api_mock):
@@ -239,7 +264,8 @@ def help_test(cli_function, service_function, rv, args=None):
         service_function.return_value = rv
         runner = CliRunner()
         runner.invoke(cli_function, args)
-        assert echo_mock.call_args[0][0] == pretty_format(rv)
+        assert (json.dumps(json.loads(echo_mock.call_args[0][0]), sort_keys=True)
+                == json.dumps(rv, sort_keys=True))
 
 
 @provide_conf

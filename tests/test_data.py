@@ -109,3 +109,23 @@ CLUSTER_2_RV = deepcopy(CLUSTER_1_RV)
 # fix the cluster ids for the second cluster
 CLUSTER_2_RV['cluster_id'] = TEST_CLUSTER_ID_2
 CLUSTER_2_RV['default_tags']['ClusterId'] = TEST_CLUSTER_ID_2
+
+CLUSTER_1_RV_EDITABLE = {
+    "cluster_id": TEST_CLUSTER_ID,
+    "cluster_name": TEST_CLUSTER_NAME,
+    "spark_version": "6.5.x-scala2.11",
+    "spark_conf": {
+    },
+    "node_type_id": "i3.4xlarge",
+    "driver_node_type_id": "i3.4xlarge",
+    "autotermination_minutes": 0,
+    "enable_elastic_disk": True,
+    "init_scripts": [
+    ],
+    "enable_local_disk_encryption": False,
+    "autoscale": {
+        "min_workers": 1,
+        "max_workers": 1
+    },
+    "init_scripts_safe_mode": False
+}

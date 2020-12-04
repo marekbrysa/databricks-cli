@@ -22,6 +22,7 @@
 # limitations under the License.
 
 import time
+from copy import deepcopy
 from datetime import datetime
 from json import loads as json_loads
 
@@ -56,27 +57,62 @@ def create_cli(api_client, json_file, json):
     json_cli_base(json_file, json, lambda json: ClusterApi(api_client).create_cluster(json))
 
 
+def _split_cluster_get_fields(cluster_get_data):
+    """
+    Split clusters/get response into fields that can be later supplied to clusters/edit
+    and ones that are only about cluster state.
+
+    :param cluster_get_data: response of clusters/get API
+    :return: Tuple of editable and non-editable fields
+    """
+    editable = deepcopy(cluster_get_data)
+    non_editable_fields = [
+        'cluster_source', 'state', 'state_message', 'start_time', 'terminated_time',
+        'last_state_loss_time', 'last_activity_time', 'cluster_memory_mb',
+        'cluster_cores', 'default_tags', 'cluster_log_status', 'termination_reason',
+        'creator_user_name', 'driver', 'executors', 'spark_context_id', 'jdbc_port',
+        'pinned_by_user_name']
+    non_editable = {}
+    for f in non_editable_fields:
+        fv = editable.pop(f, None)
+        if fv is not None:
+            non_editable[f] = fv
+    return editable, non_editable
+
+
 @click.command(context_settings=CONTEXT_SETTINGS)
 @click.option('--json-file', default=None, type=click.Path(),
               help='File containing JSON request to POST to /api/2.0/clusters/edit.')
 @click.option('--json', default=None, type=JsonClickType(),
               help=JsonClickType.help('/api/2.0/clusters/edit'))
+@click.option('--cluster-id', default=None, type=ClusterIdClickType(),
+              help='Edit cluster with given id in place interactively. ' + ClusterIdClickType.help)
 @debug_option
 @profile_option
 @eat_exceptions
 @provide_api_client
-def edit_cli(api_client, json_file, json):
+def edit_cli(api_client, json_file, json, cluster_id):
     """
     Edits a Databricks cluster.
 
     The specification for the request json can be found at
     https://docs.databricks.com/api/latest/clusters.html#edit
     """
-    if not bool(json_file) ^ bool(json):
-        raise RuntimeError('Either --json-file or --json should be provided')
+    if not bool(json_file) ^ bool(json) ^ bool(cluster_id):
+        raise RuntimeError('One of --json-file, --json or --cluster-id must be provided')
     if json_file:
         with open(json_file, 'r') as f:
             json = f.read()
+    elif cluster_id:
+        cluster = ClusterApi(api_client).get_cluster(cluster_id)
+        (editable, non_editable) = _split_cluster_get_fields(cluster)
+        separator = '# Edit the JSON above. Non-editable state below and is ignored.\n'
+        edited_cluster = click.edit("{}\n{}{}".format(
+            pretty_format(editable), separator, pretty_format(non_editable)))
+        if edited_cluster is None:
+            raise RuntimeError('Cluster edit aborted.')
+        json = edited_cluster.split(separator, 1)[0].rstrip('\n')
+
     deser_json = json_loads(json)
     ClusterApi(api_client).edit_cluster(deser_json)
 
@@ -160,11 +196,13 @@ def delete_cli(api_client, cluster_id):
               type=ClusterIdClickType(), default=None, help=ClusterIdClickType.help)
 @click.option('--cluster-name', cls=OneOfOption, one_of=CLUSTER_OPTIONS,
               type=ClusterIdClickType(), default=None, help=ClusterIdClickType.help)
+@click.option('--editable-only', is_flag=True,
+              help='Only output cluster metadata that can be edited, omit cluster state.')
 @debug_option
 @profile_option
 @eat_exceptions
 @provide_api_client
-def get_cli(api_client, cluster_id, cluster_name):
+def get_cli(api_client, cluster_id, cluster_name, editable_only):
     """
     Retrieves metadata about a cluster.
     """
@@ -174,6 +212,9 @@ def get_cli(api_client, cluster_id, cluster_name):
         cluster = ClusterApi(api_client).get_cluster_by_name(cluster_name)
     else:
         raise RuntimeError('cluster_name and cluster_id were empty?')
+
+    if editable_only:
+        cluster = _split_cluster_get_fields(cluster)[0]
 
     click.echo(pretty_format(cluster))
 
