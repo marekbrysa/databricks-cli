@@ -81,6 +81,23 @@ def test_reset_cli_json(jobs_api_mock):
     }
 
 
+@provide_conf
+def test_reset_cli_json_interactive(jobs_api_mock):
+    runner = CliRunner()
+    jobs_api_mock.get_job = mock.MagicMock(return_value={
+        'job_id': 1,
+        'settings': {'foo': 'bar'}
+    })
+    with mock.patch('databricks_cli.jobs.cli.click.edit') as edit_mock:
+        edit_mock.return_value = RESET_JSON
+        runner.invoke(cli.reset_cli, ['--job-id', 1])
+        assert edit_mock.call_args[0][0] == '{\n  "foo": "bar"\n}'
+    assert jobs_api_mock.reset_job.call_args[0][0] == {
+        'job_id': 1,
+        'new_settings': json.loads(RESET_JSON)
+    }
+
+
 LIST_RETURN = {
     'jobs': [{
         'job_id': 1,
